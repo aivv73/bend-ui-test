@@ -1,7 +1,7 @@
 # Bend UI test
 
-Библиотека отправляет клавиши, клики и запрос закрытия в окно вашего форка Bend по `WindowRef`.
-Ссылка получается через `Window.export_ref`. Владелец `Window` остаётся у приложения.
+This library sends key presses, clicks, and close requests to a window in the Bend fork using `WindowRef`.
+Obtain the reference through `Window.export_ref`. The application retains ownership of `Window`.
 
 ```python
 import Base
@@ -16,17 +16,17 @@ def drive(+ref: WindowRef) -> IO(Unit):
     IO.print(Bool.show(alive))
 ```
 
-`97` соответствует `a`. Каждый вызов `key` и `click` отправляет нажатие и отпускание.
-`request_close` передаёт приложению `Close{}`. Приложение само закрывает свой `Window`.
-После успешной отправки приложение обрабатывает события через `Window.frame`.
+`97` is the code for `a`. Each `key` and `click` call sends both a press and a release.
+`request_close` sends `Close{}` to the application. The application closes its own `Window`.
+After a successful send, the application processes the events through `Window.frame`.
 
-## Запустить пример
+## Run the example
 
-Нужен [форк aivv73/bend](https://github.com/aivv73/bend) с `WindowRef`, `Window.export_ref` и `Window.capture`.
-Также нужны Bun, Clang и заголовки libX11. Окна работают в native Linux с X11 или Xwayland.
+You need the [aivv73/bend fork](https://github.com/aivv73/bend) with `WindowRef`, `Window.export_ref`, and `Window.capture`.
+You also need Bun, Clang, and the libX11 headers. Native window support requires Linux with X11 or Xwayland.
 
-Если checkout форка находится в соседней папке `../bend`, команды запускаются сразу.
-Для другого расположения задайте `BEND_ROOT`.
+If the fork checkout is in the sibling directory `../bend`, the commands work without additional configuration.
+For another location, set `BEND_ROOT`.
 
 ```bash
 export BEND_ROOT=/absolute/path/to/bend
@@ -35,24 +35,24 @@ mkdir -p .build
 ./.build/smoke
 ```
 
-Пример открывает окно, отправляет события и закрывает его. Ожидаемый вывод `UITest smoke: OK`.
-Если форк уже установлен как исполняемый `bend`, задайте `BEND_BIN=/absolute/path/to/bend`.
-Обычный установленный Bend без `WindowRef` не подходит.
+The example opens a window, sends events, and closes it. The expected output is `UITest smoke: OK`.
+If the fork is already installed as a `bend` executable, set `BEND_BIN=/absolute/path/to/bend`.
+A standard Bend installation without `WindowRef` cannot run this library.
 
-## Проверить библиотеку
+## Test the library
 
 ```bash
 ./scripts/test
 ```
 
-При наличии Xvfb скрипт создаёт отдельный виртуальный дисплей.
-Иначе он использует `DISPLAY`. Можно задать путь к Xvfb через `XVFB_BIN`.
-Для проверок без окон используйте `./scripts/test --no-window`.
+If Xvfb is available, the script creates a separate virtual display.
+Otherwise, it uses `DISPLAY`. You can set the Xvfb executable path through `XVFB_BIN`.
+To run checks without windows, use `./scripts/test --no-window`.
 
-Полный прогон проверяет три закона с `--verdict`, JavaScript в Bun и Node, отдельную сборку каждой операции и реальные события двух окон.
-Тест клавиш перебирает все коды текущей раскладки через настоящий декодер форка.
-Тест также проверяет `Window.capture`, границы кликов, кооперативное закрытие и устаревшие ссылки.
-Для проверки памяти запустите `SANITIZE=1 ./scripts/test`. Этот режим включает AddressSanitizer и UndefinedBehaviorSanitizer.
+The full run checks three laws with `--verdict`, runs JavaScript in Bun and Node, builds each operation separately, and observes real events in two windows.
+The key test enumerates every code in the current keyboard layout using the fork's actual decoder.
+The tests also cover `Window.capture`, click boundaries, cooperative closing, and stale references.
+To check memory safety, run `SANITIZE=1 ./scripts/test`. This mode enables AddressSanitizer and UndefinedBehaviorSanitizer.
 
-Подробные типы, коды ошибок и ограничения описаны в [справочнике API](docs/api.md).
-Выбор реализации и граница доказательств описаны в [описании устройства](docs/design.md).
+See the [API reference](docs/api.md) for types, error codes, and limitations.
+See the [design documentation](docs/design.md) for implementation choices and the proof boundary.

@@ -1,52 +1,52 @@
-# Устройство UITest
+# UITest design
 
-`plan.bend` строит полные последовательности `Event`.
-`uitest.bend` объединяет эти планы с `WindowRef` и вызывает native-бэкенд один раз на операцию.
-`uitest.c` проверяет план, открывает указанный дисплей и отправляет события через `XSendEvent`.
-`uitest.js` возвращает ENOTSUP.
+`plan.bend` builds complete `Event` sequences.
+`uitest.bend` combines these plans with `WindowRef` and calls the native backend once per operation.
+`uitest.c` validates the plan, opens the specified display, and sends events through `XSendEvent`.
+`uitest.js` returns ENOTSUP.
 
-Один обработчик IO отправляет обе части нажатия до следующего эффекта Bend.
-Порядок между запросами сохраняет последовательный `do IO`.
-Другой X11-клиент или уничтожение окна всё ещё могут вмешаться между двумя запросами.
+One IO handler sends both the press and release before the next Bend effect.
+Sequential `do IO` calls preserve request order.
+Another X11 client or window destruction can still intervene between the two requests.
 
-## Выбор реализации
+## Implementation choices
 
-Три независимых проекта и отдельная проверка использовали одну модель.
-Основой выбран адресный native-бэкенд с чистым планом событий.
+Three independent designs and a separate review used the same model.
+The selected design uses a native backend that targets a specific window and consumes a pure event plan.
 
-| Вариант | Решение |
+| Option | Decision |
 |---|---|
-| Native XSendEvent с планом `List<Event>` | Выбран. Скрывает детали X11 за четырьмя вызовами и не требует отдельного исполняемого файла. |
-| Отдельный helper через `Process.run` | Отклонён для текущего объёма задачи. Он изолирует фатальные ошибки Xlib, но требует установки helper и запуска процесса на каждый вызов. |
-| Чистая таблица KeySym и native-план | Из неё взяты правила namespace и отдельной сборки операций. Статическая таблица уступила подбору по фактическому декодеру раскладки. |
-| XTest | Отклонён. События зависят от глобального курсора и фокуса, требуется libXtst. |
+| Native XSendEvent with a `List<Event>` plan | Selected. Hides X11 details behind four calls and requires no separate executable. |
+| A separate helper through `Process.run` | Rejected for the current scope. It isolates fatal Xlib errors but requires helper installation and a new process for each call. |
+| A pure KeySym table and native plan | Contributed the namespace rules and separate builds for each operation. The static table was replaced by lookup through the actual layout decoder. |
+| XTest | Rejected. Events depend on the global cursor and focus, and it requires libXtst. |
 
-Общие C-эффекты объявлены в одном Bend-модуле.
-В native ABI используются конструкторы Base, потому что механизм `CID` не разрешает импортные псевдонимы других модулей.
+The shared C effects are declared in one Bend module.
+The native ABI uses Base constructors because `CID` does not resolve import aliases from other modules.
 
-Принцип Model the Domain определил структуру `List<Event>` как единый план операции.
-Boundary Discipline сосредоточил проверки ссылки, геометрии и ошибок X11 на границе C-эффекта.
-Separate Before Serializing Shared State оставил одного владельца реализации и отдельные файлы для проектов вариантов.
-Build the Lever привёл к воспроизводимому `scripts/test`.
-Prove It Works требует сравнения реальных событий `Window.frame` с ожидаемыми значениями.
+Model the Domain established `List<Event>` as a complete operation plan.
+Boundary Discipline concentrated reference, geometry, and X11 error checks at the C effect boundary.
+Separate Before Serializing Shared State assigned one implementation owner and separate files for the alternative designs.
+Build the Lever led to the reproducible `scripts/test` runner.
+Prove It Works requires comparing actual `Window.frame` events with expected values.
 
-## Граница доказательств
+## Proof boundary
 
-`LAWS.bend` импортирует только Base и `plan.bend`.
-Три закона утверждают точные списки событий для клавиши, левого клика и закрытия.
-`PROOF.bend` доказывает их без `@unsafe` и foreign-определений.
+`LAWS.bend` imports only Base and `plan.bend`.
+Three laws specify the exact event lists for a key press, left click, and close request.
+`PROOF.bend` proves them without `@unsafe` or foreign definitions.
 
-Доказательства охватывают порядок, код клавиши, координаты и кнопку в плане.
-Они не доказывают работу Xlib, доставку событий, время жизни окна или корректность C ABI.
-Эти свойства проверяют native-тесты. Тест раскладки получает коды через настоящий `window_key` из подключённого форка.
-Если декодер форка меняется, проверка сравнивает его поведение с библиотекой.
+The proofs cover order, key codes, coordinates, and button identity in the plan.
+They do not prove Xlib behavior, event delivery, window lifetime, or C ABI correctness.
+Native tests check those properties. The layout test obtains codes through the actual `window_key` in the linked fork.
+If the fork's decoder changes, the test compares its behavior with the library.
 
-## Проверки
+## Verification
 
-`scripts/test` запускает обычную проверку PROOF и proven-kernel `--verdict`.
-Далее он выполняет JavaScript в Bun и Node, собирает каждую публичную операцию отдельно и запускает native-тесты.
-Native-тесты проверяют последовательности событий, все коды раскладки, два отдельных окна, чтение кадра и ошибки устаревших ссылок.
-На Linux дополнительная сборка с `-U__linux__` проверяет выполнение ветки без X11.
-`SANITIZE=1` добавляет AddressSanitizer и UndefinedBehaviorSanitizer к native-тесту.
+`scripts/test` runs the standard PROOF check and `--verdict` with the proven kernel.
+It then runs JavaScript in Bun and Node, builds each public operation separately, and runs the native tests.
+Native tests check event sequences, all layout codes, two separate windows, frame readback, and stale-reference errors.
+On Linux, an additional build with `-U__linux__` exercises the branch without X11.
+`SANITIZE=1` adds AddressSanitizer and UndefinedBehaviorSanitizer to the native test.
 
-Подробные ограничения Xlib и `WindowRef` перечислены в [справочнике API](api.md).
+The [API reference](api.md) lists the Xlib and `WindowRef` limitations.
