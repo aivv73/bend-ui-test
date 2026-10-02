@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd -- "$project_dir"
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --no-window ) ]]; then
+  echo 'Usage: scripts/test [--no-window]' >&2
+  exit 2
+fi
+mkdir -p .build
+
+./scripts/bend base WindowRef > .build/window-ref.txt
+./scripts/bend PROOF.bend
+./scripts/bend PROOF.bend --verdict
+./scripts/bend tests/js.bend -o .build/js-tests.js
+bun .build/js-tests.js
+node .build/js-tests.js
+
+if [[ $(uname -s) == Linux ]]; then
+  ./scripts/bend tests/js.bend -o .build/no-x11.c
+  "${CC:-clang}" -U__linux__ -std=c11 -O1 .build/no-x11.c \
+    -lpthread -lm -o .build/no-x11
+  .build/no-x11
+  echo 'native non-X11 branch: OK'
+fi
+
+for operation in key click request_close alive; do
+  case "$operation" in
+    key) expression='UITest.key(X11WindowRef{":65530", 123}, 97)' ;;
+    click) expression='UITest.click(X11WindowRef{":65530", 123}, 0, 0)' ;;
+    request_close) expression='UITest.request_close(X11WindowRef{":65530", 123})' ;;
+    alive) expression='UITest.alive(X11WindowRef{":65530", 123})' ;;
+  esac
+  result=Unit
+  assertion=error_unit
+  if [[ "$operation" == alive ]]; then
+    result=Bool
+    assertion=error_bool
+  fi
+  cat > ".build/only-$operation.bend" <<EOF
+import Base
+import ../uitest.bend as UITest
+import ../tests/assert.bend as Assert
+
+def main() -> IO(Unit):
+  do IO<Unit>:
+    result : Result<&1, &1, U32 & String, $result> <- $expression
+    Assert.check(Assert.$assertion(2, result), "standalone $operation returns missing-display error")
+EOF
+  ./scripts/bend ".build/only-$operation.bend" -o ".build/only-$operation"
+  ".build/only-$operation"
+done
+
+if [[ ${1:-} == --no-window ]]; then
+  echo 'Window tests skipped by --no-window.'
+  exit 0
+fi
+./scripts/bend tests/native.bend -o .build/native
+./scripts/bend examples/smoke.bend -o .build/smoke
+
+if [[ ${SANITIZE:-0} == 1 ]]; then
+  ./scripts/bend tests/native.bend -o .build/native-sanitized.c
+  "${CC:-clang}" -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
+    -fno-omit-frame-pointer .build/native-sanitized.c \
+    -lpthread -lm -lX11 -o .build/native
+fi
+
+xvfb_bin=${XVFB_BIN:-}
+if [[ -z "$xvfb_bin" ]] && command -v Xvfb >/dev/null; then
+  xvfb_bin=$(command -v Xvfb)
+fi
+
+if [[ -n "$xvfb_bin" ]]; then
+  server_dir=$(mktemp -d)
+  server_pid=
+  cleanup() {
+    if [[ -n "$server_pid" ]]; then
+      kill "$server_pid" 2>/dev/null || true
+      wait "$server_pid" 2>/dev/null || true
+    fi
+    rm -rf -- "$server_dir"
+  }
+  trap cleanup EXIT
+  "$xvfb_bin" -displayfd 3 -screen 0 1024x768x24 -nolisten tcp \
+    3> "$server_dir/display" > .build/xvfb.log 2>&1 &
+  server_pid=$!
+  for ((attempt=0; attempt<100; attempt++)); do
+    [[ -s "$server_dir/display" ]] && break
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      cat .build/xvfb.log >&2
+      exit 1
+    fi
+    sleep 0.05
+  done
+  if [[ ! -s "$server_dir/display" ]]; then
+    echo 'Xvfb did not become ready.' >&2
+    exit 1
+  fi
+  display_number=$(tr -d '\n' < "$server_dir/display")
+  DISPLAY=":$display_number" .build/native
+  DISPLAY=":$display_number" .build/smoke
+else
+  if [[ -z ${DISPLAY:-} ]]; then
+    echo 'Set DISPLAY or install Xvfb. Use --no-window for proof and backend checks only.' >&2
+    exit 1
+  fi
+  .build/native
+  .build/smoke
+fi

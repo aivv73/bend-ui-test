@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+if [[ -n ${BEND_BIN:-} ]]; then
+  exec "$BEND_BIN" "$@"
+fi
+
+bend_root=${BEND_ROOT:-"$project_dir/../bend"}
+if [[ -f "$bend_root/bend2/main.ts" ]]; then
+  exec bun --no-env-file --no-bunfig "$bend_root/bend2/main.ts" "$@"
+fi
+
+exec bend "$@"
