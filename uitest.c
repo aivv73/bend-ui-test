@@ -1,4 +1,4 @@
-#if defined(CID(send)) || defined(CID(alive))
+#if defined(CID(send_to)) || defined(CID(alive_at))
 
 #if defined(__linux__) && !defined(__OBJC__)
 #include <X11/Xlib.h>
@@ -10,16 +10,10 @@ typedef struct {
   u32 id;
 } UitestRef;
 
-static bool uitest_ref(Env e, Term value, UitestRef* ref) {
-  if (term_aux(value) != CID(X11WindowRef)) {
-    term_sink(e, value);
-    return false;
-  }
-  Term fields[2];
-  spare_free(e, cls_fit(2), ctr_take(e, value, 2, fields));
+static bool uitest_ref(Env e, Term display, Term id, UitestRef* ref) {
   u64 size = 0;
-  ref->display = io_cstr(e, fields[0], &size);
-  ref->id = (u32)fields[1];
+  ref->display = io_cstr(e, display, &size);
+  ref->id = (u32)id;
   return size != 0 && memchr(ref->display, 0, size) == NULL && ref->id != 0;
 }
 
@@ -66,7 +60,7 @@ static u32 uitest_errno(int error) {
 
 #endif
 
-#ifdef CID(send)
+#ifdef CID(send_to)
 
 #if defined(__linux__) && !defined(__OBJC__)
 
@@ -138,7 +132,7 @@ static bool uitest_plan(Env e, Term values, UitestPlan* plan) {
     && events[1].x == plan->x && events[1].y == plan->y;
 }
 
-// Keep this decoder identical to the pinned fork's window_key.
+// Keep this decoder identical to Bend 2.0.37's window_key.
 static const u32 uitest_keys[][2] = {
   { XK_BackSpace, 127 },   { XK_Up,        63232 }, { XK_Down,      63233 },
   { XK_Left,      63234 }, { XK_Right,     63235 }, { XK_Insert,    63271 },
@@ -226,8 +220,8 @@ static Term uitest_send_run(Env e, Term* f, IoWork* work) {
 #if defined(__linux__) && !defined(__OBJC__)
   UitestRef ref = {0};
   UitestPlan plan = {0};
-  bool ref_valid = uitest_ref(e, f[0], &ref);
-  bool plan_valid = uitest_plan(e, f[1], &plan);
+  bool ref_valid = uitest_ref(e, f[0], f[1], &ref);
+  bool plan_valid = uitest_plan(e, f[2], &plan);
   if (!ref_valid || !plan_valid) {
     free(ref.display);
     return io_fail(e, EINVAL, "UITest.send: invalid window reference or event plan");
@@ -331,23 +325,23 @@ static Term uitest_send_run(Env e, Term* f, IoWork* work) {
   return code == 0 ? io_done(e, term_pak(CID(Unit), 0)) : io_fail(e, code, why);
 #else
   term_sink(e, f[0]);
-  term_sink(e, f[1]);
+  term_sink(e, f[2]);
   return io_fail(e, ENOTSUP, "UITest.send: X11 test effects are unavailable on this backend");
 #endif
 }
 
 static void __attribute__((constructor)) uitest_send_use(void) {
-  io_eff(CID(send), uitest_send_run, 0);
+  io_eff(CID(send_to), uitest_send_run);
 }
 
 #endif
 
-#ifdef CID(alive)
+#ifdef CID(alive_at)
 
 static Term uitest_alive_run(Env e, Term* f, IoWork* work) {
 #if defined(__linux__) && !defined(__OBJC__)
   UitestRef ref = {0};
-  if (!uitest_ref(e, f[0], &ref)) {
+  if (!uitest_ref(e, f[0], f[1], &ref)) {
     free(ref.display);
     return io_fail(e, EINVAL, "UITest.alive: invalid window reference");
   }
@@ -376,7 +370,7 @@ static Term uitest_alive_run(Env e, Term* f, IoWork* work) {
 }
 
 static void __attribute__((constructor)) uitest_alive_use(void) {
-  io_eff(CID(alive), uitest_alive_run, 0);
+  io_eff(CID(alive_at), uitest_alive_run);
 }
 
 #endif

@@ -1,4 +1,6 @@
 import Base
+import 0xfdc8da256837fef81553ec8530fb7431/capture.bend as Capture
+import 0x8cc463a65f479c5af6b3080035eb0836/winref.bend as WinRef
 import ../uitest.bend as UITest
 import ./assert.bend as Assert
 import ./reference.bend as Reference
@@ -51,7 +53,7 @@ def expected() -> List<Event>:
    Mouse{0, 0, 0, True{}}, Mouse{0, 0, 0, False{}},
    Mouse{95, 63, 0, True{}}, Mouse{95, 63, 0, False{}}, Close{}]
 
-def roundtrip_codes(codes: List<U32>, +ref: WindowRef) -> IO(List<Event>):
+def roundtrip_codes(codes: List<U32>, +ref: WinRef.WindowRef) -> IO(List<Event>):
   match codes:
     case Nil{}:
       IO.pure(List<Event>, [])
@@ -65,7 +67,7 @@ def first_pixel(q: Array<U32> & U32) -> U32:
   (pixels, value) = q
   value
 
-def expired(+ref: WindowRef) -> IO(Unit):
+def expired(+ref: WinRef.WindowRef) -> IO(Unit):
   do IO<Unit>:
     alive : Result<&1, &1, U32 & String, Bool> <- UITest.alive(ref)
     Assert.check(Assert.success_bool(False{}, alive), "closed exported reference is no longer alive")
@@ -75,17 +77,17 @@ def expired(+ref: WindowRef) -> IO(Unit):
     Assert.check(Assert.error_unit(2, clicked), "click on stale reference returns ENOENT")
     closed : Result<&1, &1, U32 & String, Unit> <- UITest.request_close(ref)
     Assert.check(Assert.error_unit(2, closed), "close on stale reference returns ENOENT")
-    missing : Result<&1, &1, U32 & String, Bool> <- UITest.alive(X11WindowRef{":65530", 123})
+    missing : Result<&1, &1, U32 & String, Bool> <- UITest.alive(WinRef.X11WindowRef{":65530", 123})
     Assert.check(Assert.error_bool(2, missing), "missing display is an error")
-    empty : Result<&1, &1, U32 & String, Bool> <- UITest.alive(X11WindowRef{"", 123})
+    empty : Result<&1, &1, U32 & String, Bool> <- UITest.alive(WinRef.X11WindowRef{"", 123})
     Assert.check(Assert.error_bool(22, empty), "empty display never substitutes DISPLAY")
-    nul : Result<&1, &1, U32 & String, Bool> <- UITest.alive(X11WindowRef{SCon{Char.from_u32(0), ":1"}, 123})
+    nul : Result<&1, &1, U32 & String, Bool> <- UITest.alive(WinRef.X11WindowRef{SCon{Char.from_u32(0), ":1"}, 123})
     Assert.check(Assert.error_bool(22, nul), "embedded NUL in display is rejected")
-    zero : Result<&1, &1, U32 & String, Bool> <- UITest.alive(X11WindowRef{":65530", 0})
+    zero : Result<&1, &1, U32 & String, Bool> <- UITest.alive(WinRef.X11WindowRef{":65530", 0})
     Assert.check(Assert.error_bool(22, zero), "zero window ID is rejected before opening display")
     IO.print("native UI tests: OK")
 
-def isolated(ref: WindowRef, window: Window, q: Window & Image & List<Event>) -> IO(Unit):
+def isolated(ref: WinRef.WindowRef, window: Window, q: Window & Image & List<Event>) -> IO(Unit):
   (other, image, events) = q
   do IO<Unit>:
     Assert.check(same_events(input_events(events), []), "another window receives no injected input")
@@ -93,11 +95,11 @@ def isolated(ref: WindowRef, window: Window, q: Window & Image & List<Event>) ->
     Window.close(window)
     expired(ref)
 
-def captured(ref: WindowRef, other: Window,
-  q: Window & Result<&1, &1, U32 & String, Capture>) -> IO(Unit):
+def captured(ref: WinRef.WindowRef, other: Window,
+  q: Window & Result<&1, &1, U32 & String, Capture.Capture>) -> IO(Unit):
   (window, result) = q
   match result:
-    case Done{Capture{width, height, pixels}}:
+    case Done{Capture.Capture{width, height, pixels}}:
       do IO<Unit>:
         Assert.check(U32.is_eq(width, 96) && U32.is_eq(height, 64), "capture keeps exact client dimensions")
         Assert.check(U32.is_eq(first_pixel(Array.get(U32, pixels, 0)), 1122867), "capture reads the frame drawn after injection")
@@ -108,14 +110,14 @@ def captured(ref: WindowRef, other: Window,
         Window.close(window)
         IO.die(Unit, 1, "FAIL: Window.capture after injection")
 
-def keymap_observed(ref: WindowRef, other: Window, expected: List<Event>,
+def keymap_observed(ref: WinRef.WindowRef, other: Window, expected: List<Event>,
   q: Window & Image & List<Event>) -> IO(Unit):
   (window, image, events) = q
   do IO<Unit>:
-    Assert.check(same_events(input_events(events), expected), "every code produced by the fork receiver round-trips through UITest.key")
-    IO.bind(Window & Result<&1, &1, U32 & String, Capture>, Unit, Window.capture(window), captured(ref, other))
+    Assert.check(same_events(input_events(events), expected), "every code produced by the upstream receiver round-trips through UITest.key")
+    IO.bind(Window & Result<&1, &1, U32 & String, Capture.Capture>, Unit, Capture.Window.capture(window), captured(ref, other))
 
-def observed(+ref: WindowRef, other: Window, before: String,
+def observed(+ref: WinRef.WindowRef, other: Window, before: String,
   q: Window & Image & List<Event>) -> IO(Unit):
   (window, image, events) = q
   do IO<Unit>:
@@ -128,7 +130,7 @@ def observed(+ref: WindowRef, other: Window, before: String,
     expected : List<Event> <- roundtrip_codes(codes, ref)
     IO.bind(Window & Image & List<Event>, Unit, Window.frame(window, Pix{1122867}), keymap_observed(ref, other, expected))
 
-def exercise(+ref: WindowRef, window: Window, other: Window) -> IO(Unit):
+def exercise(+ref: WinRef.WindowRef, window: Window, other: Window) -> IO(Unit):
   do IO<Unit>:
     before : String <- Reference.input_state(ref)
     live : Bool <- IO.try(Bool, UITest.alive(ref))
@@ -160,8 +162,8 @@ def exercise(+ref: WindowRef, window: Window, other: Window) -> IO(Unit):
     close : Unit <- IO.try(Unit, UITest.request_close(ref))
     IO.bind(Window & Image & List<Event>, Unit, Window.frame(window, Pix{1122867}), observed(ref, other, before))
 
-def exported(other_ref: WindowRef, other: Window,
-  q: Window & Result<&1, &1, U32 & String, WindowRef>) -> IO(Unit):
+def exported(other_ref: WinRef.WindowRef, other: Window,
+  q: Window & Result<&1, &1, U32 & String, WinRef.WindowRef>) -> IO(Unit):
   (window, result) = q
   match result:
     case Done{+ref}:
@@ -175,12 +177,12 @@ def exported(other_ref: WindowRef, other: Window,
         IO.die(Unit, 1, "FAIL: export reference")
 
 def exported_other(window: Window,
-  q: Window & Result<&1, &1, U32 & String, WindowRef>) -> IO(Unit):
+  q: Window & Result<&1, &1, U32 & String, WinRef.WindowRef>) -> IO(Unit):
   (other, result) = q
   match result:
     case Done{other_ref}:
-      IO.bind(Window & Result<&1, &1, U32 & String, WindowRef>, Unit,
-        Window.export_ref(window), exported(other_ref, other))
+      IO.bind(Window & Result<&1, &1, U32 & String, WinRef.WindowRef>, Unit,
+        WinRef.WinRef.export(window), exported(other_ref, other))
     case Fail{error}:
       do IO<Unit>:
         Window.close(other)
@@ -190,7 +192,7 @@ def exported_other(window: Window,
 def second(window: Window, result: Result<&1, &1, U32 & String, Window>) -> IO(Unit):
   match result:
     case Done{other}:
-      IO.bind(Window & Result<&1, &1, U32 & String, WindowRef>, Unit, Window.export_ref(other), exported_other(window))
+      IO.bind(Window & Result<&1, &1, U32 & String, WinRef.WindowRef>, Unit, WinRef.WinRef.export(other), exported_other(window))
     case Fail{error}:
       do IO<Unit>:
         Window.close(window)
