@@ -9,7 +9,7 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != --no-window ) ]]; then
 fi
 mkdir -p .build
 
-./scripts/bend base WindowRef > .build/window-ref.txt
+./scripts/bend version
 ./scripts/bend PROOF.bend
 ./scripts/bend PROOF.bend --verdict
 ./scripts/bend tests/js.bend -o .build/js-tests.js
@@ -26,10 +26,10 @@ fi
 
 for operation in key click request_close alive; do
   case "$operation" in
-    key) expression='UITest.key(X11WindowRef{":65530", 123}, 97)' ;;
-    click) expression='UITest.click(X11WindowRef{":65530", 123}, 0, 0)' ;;
-    request_close) expression='UITest.request_close(X11WindowRef{":65530", 123})' ;;
-    alive) expression='UITest.alive(X11WindowRef{":65530", 123})' ;;
+    key) expression='UITest.key(WinRef.X11WindowRef{":65530", 123}, 97)' ;;
+    click) expression='UITest.click(WinRef.X11WindowRef{":65530", 123}, 0, 0)' ;;
+    request_close) expression='UITest.request_close(WinRef.X11WindowRef{":65530", 123})' ;;
+    alive) expression='UITest.alive(WinRef.X11WindowRef{":65530", 123})' ;;
   esac
   result=Unit
   assertion=error_unit
@@ -39,6 +39,7 @@ for operation in key click request_close alive; do
   fi
   cat > ".build/only-$operation.bend" <<EOF
 import Base
+import 0x8cc463a65f479c5af6b3080035eb0836/winref.bend as WinRef
 import ../uitest.bend as UITest
 import ../tests/assert.bend as Assert
 

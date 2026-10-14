@@ -1,4 +1,5 @@
 import Base
+import 0x8cc463a65f479c5af6b3080035eb0836/winref.bend as WinRef
 import ../uitest.bend as UITest
 
 def report(ok: Bool) -> IO(Unit):
@@ -17,14 +18,14 @@ def has_close(events: List<Event>) -> Bool:
     case event <> rest:
       has_close(rest)
 
-def finished(ref: WindowRef, q: Window & Image & List<Event>) -> IO(Unit):
+def finished(ref: WinRef.WindowRef, q: Window & Image & List<Event>) -> IO(Unit):
   (window, image, events) = q
   do IO<Unit>:
     Window.close(window)
     alive : Bool <- IO.try(Bool, UITest.alive(ref))
     report(has_close(events) && Bool.not(alive))
 
-def exported(q: Window & Result<&1, &1, U32 & String, WindowRef>) -> IO(Unit):
+def exported(q: Window & Result<&1, &1, U32 & String, WinRef.WindowRef>) -> IO(Unit):
   (window, result) = q
   match result:
     case Done{+ref}:
@@ -37,10 +38,10 @@ def exported(q: Window & Result<&1, &1, U32 & String, WindowRef>) -> IO(Unit):
     case Fail{error}:
       do IO<Unit>:
         Window.close(window)
-        IO.die(Unit, 1, "Window.export_ref failed")
+        IO.die(Unit, 1, "WinRef.export failed")
 
 def main() -> IO(Unit):
   do IO<Unit>:
     window : Window <- IO.try(Window, Window.open("UITest smoke", 160, 120))
-    IO.bind(Window & Result<&1, &1, U32 & String, WindowRef>, Unit,
-      Window.export_ref(window), exported)
+    IO.bind(Window & Result<&1, &1, U32 & String, WinRef.WindowRef>, Unit,
+      WinRef.WinRef.export(window), exported)

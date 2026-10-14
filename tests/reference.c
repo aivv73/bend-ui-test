@@ -47,7 +47,7 @@ static Term uitest_reference_codes_run(Env e, Term* f, IoWork* work) {
 }
 
 static void __attribute__((constructor)) uitest_reference_codes_use(void) {
-  io_eff(CID(codes), uitest_reference_codes_run, 0);
+  io_eff(CID(codes), uitest_reference_codes_run);
 }
 
 static Term uitest_reference_arrange_run(Env e, Term* f, IoWork* work) {
@@ -69,7 +69,7 @@ static Term uitest_reference_arrange_run(Env e, Term* f, IoWork* work) {
 }
 
 static void __attribute__((constructor)) uitest_reference_arrange_use(void) {
-  io_eff(CID(arrange), uitest_reference_arrange_run, 0);
+  io_eff(CID(arrange), uitest_reference_arrange_run);
 }
 
 static Term uitest_reference_snapshot_run(Env e, Term* f, IoWork* work) {
@@ -112,5 +112,5 @@ static Term uitest_reference_snapshot_run(Env e, Term* f, IoWork* work) {
 }
 
 static void __attribute__((constructor)) uitest_reference_snapshot_use(void) {
-  io_eff(CID(snapshot), uitest_reference_snapshot_run, 0);
+  io_eff(CID(snapshot), uitest_reference_snapshot_run);
 }

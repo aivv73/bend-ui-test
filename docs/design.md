@@ -1,7 +1,9 @@
 # UITest design
 
 `plan.bend` builds complete `Event` sequences.
-`uitest.bend` combines these plans with `WindowRef` and calls the native backend once per operation.
+`uitest.bend` combines these plans with `WinRef.WindowRef` from the pinned Hub package.
+It unpacks the reference in Bend and passes its display name and window ID to the native backend once per operation.
+The native tests obtain references through `WinRef.WinRef.export` and read pixels through the Hub capture package's `Capture.Window.capture`.
 `uitest.c` validates the plan, opens the specified display, and sends events through `XSendEvent`.
 `uitest.js` returns ENOTSUP.
 
@@ -22,7 +24,8 @@ The selected design uses a native backend that targets a specific window and con
 | XTest | Rejected. Events depend on the global cursor and focus, and it requires libXtst. |
 
 The shared C effects are declared in one Bend module.
-The native ABI uses Base constructors because `CID` does not resolve import aliases from other modules.
+`CID(X11WindowRef)` is unavailable in the UITest native module because the constructor belongs to the Hub package.
+The native ABI therefore uses Base event constructors and primitive reference fields.
 
 Model the Domain established `List<Event>` as a complete operation plan.
 Boundary Discipline concentrated reference, geometry, and X11 error checks at the C effect boundary.
@@ -38,8 +41,8 @@ Three laws specify the exact event lists for a key press, left click, and close 
 
 The proofs cover order, key codes, coordinates, and button identity in the plan.
 They do not prove Xlib behavior, event delivery, window lifetime, or C ABI correctness.
-Native tests check those properties. The layout test obtains codes through the actual `window_key` in the linked fork.
-If the fork's decoder changes, the test compares its behavior with the library.
+Native tests check those properties. The layout test obtains codes through the actual `window_key` in the upstream compiler.
+If the upstream decoder changes, the test compares its behavior with the library.
 
 ## Verification
 
