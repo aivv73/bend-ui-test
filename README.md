@@ -5,12 +5,12 @@ Obtain the reference through `WinRef.WinRef.export`. The application retains own
 
 The dependencies are pinned to these BendHub packages:
 
-- [Window references](https://hub.bend-lang.com/0x8cc463a65f479c5af6b3080035eb0836) provide `WindowRef` and `WinRef.export`.
-- [Window capture](https://hub.bend-lang.com/0xfdc8da256837fef81553ec8530fb7431) provides `Capture` and `Window.capture` for native tests.
+- [Window references 0.1.0.1](https://hub.bend-lang.com/0x3d4f2512cce00e5099d03d9e1b3b9ae1) provide `WindowRef` and `WinRef.export`.
+- [Window capture 0.1.0.1](https://hub.bend-lang.com/0x493e83fed22415cb35e84da752fefdef) provides `Capture` and `Window.capture` for native tests, using Bend 2.0.39's array runtime.
 
 ```python
 import Base
-import 0x8cc463a65f479c5af6b3080035eb0836/winref.bend as WinRef
+import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
 import ./uitest.bend as UITest
 
 def drive(+ref: WinRef.WindowRef) -> IO(Unit):
@@ -28,7 +28,7 @@ After a successful send, the application processes the events through `Window.fr
 
 ## Run the example
 
-Use upstream [Bend](https://bend-lang.com), tested with version 2.0.37.
+Use upstream [Bend](https://bend-lang.com), tested with version 2.0.39.
 Update an existing installation with `bend update`.
 You also need Clang and the libX11 headers. Native window support requires Linux with X11 or Xwayland.
 Bend downloads and verifies the pinned Hub imports on the first build.
@@ -57,6 +57,7 @@ The full run requires Bun and Node. It checks three laws with `--verdict`, runs 
 The key test enumerates every code in the current keyboard layout using the upstream compiler's actual decoder.
 The tests also cover `Capture.Window.capture`, click boundaries, cooperative closing, and stale references.
 To check memory safety, run `SANITIZE=1 ./scripts/test`. This mode enables AddressSanitizer and UndefinedBehaviorSanitizer.
+On Bend 2.0.39, LeakSanitizer reports an upstream startup allocation; see the [verification notes](docs/design.md#verification) for the reproduction and workaround.
 
 See the [API reference](docs/api.md) for types, error codes, and limitations.
 See the [design documentation](docs/design.md) for implementation choices and the proof boundary.

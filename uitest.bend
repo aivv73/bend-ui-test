@@ -1,5 +1,5 @@
 import Base
-import 0x8cc463a65f479c5af6b3080035eb0836/winref.bend as WinRef
+import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
 import ./plan.bend as Plan
 
 def send_to(display: String, id: U32, events: List<Event>) ->
