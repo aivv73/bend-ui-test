@@ -52,4 +52,9 @@ Native tests check event sequences, all layout codes, two separate windows, fram
 On Linux, an additional build with `-U__linux__` exercises the branch without X11.
 `SANITIZE=1` adds AddressSanitizer and UndefinedBehaviorSanitizer to the native test.
 
+Bend 2.0.39's generated `main` allocates an `rts` argument array without freeing it.
+LeakSanitizer reports 16 bytes at exit when no arguments are supplied, even for a program that only imports Base and calls `IO.print`.
+The native assertions pass before this upstream leak makes the sanitizer run fail.
+Use `ASAN_OPTIONS=detect_leaks=0 SANITIZE=1 ./scripts/test` to run AddressSanitizer and UndefinedBehaviorSanitizer without leak detection.
+
 The [API reference](api.md) lists the Xlib and `WindowRef` limitations.

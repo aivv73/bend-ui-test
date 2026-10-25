@@ -2,10 +2,10 @@
 
 The module is imported as `import ./uitest.bend as UITest`.
 `Event` is defined in upstream Bend's Base library.
-`WindowRef` is defined in the pinned [window-reference package](https://hub.bend-lang.com/0x8cc463a65f479c5af6b3080035eb0836).
+`WindowRef` is defined in the pinned [window-reference package](https://hub.bend-lang.com/0x3d4f2512cce00e5099d03d9e1b3b9ae1).
 
 ```python
-import 0x8cc463a65f479c5af6b3080035eb0836/winref.bend as WinRef
+import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
 ```
 
 References have type `WinRef.WindowRef` and constructor `WinRef.X11WindowRef{display, id}`.
@@ -74,7 +74,7 @@ The native backend outside Linux returns the platform's ENOTSUP value.
 ## Limitations
 
 Native Bend windows under X11 and Xwayland are supported. Pure Wayland and JavaScript do not support event injection.
-The key decoder matches upstream Bend 2.0.37's `window_key`.
+The key decoder matches upstream Bend 2.0.39's `window_key`.
 Changing the keyboard layout after creating a window can make the owner's cached decoder disagree with the sender's new connection.
 
 `alive` reports whether the window exists at the time of the query.

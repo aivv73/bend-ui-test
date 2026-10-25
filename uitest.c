@@ -132,7 +132,7 @@ static bool uitest_plan(Env e, Term values, UitestPlan* plan) {
     && events[1].x == plan->x && events[1].y == plan->y;
 }
 
-// Keep this decoder identical to Bend 2.0.37's window_key.
+// Keep this decoder identical to Bend 2.0.39's window_key.
 static const u32 uitest_keys[][2] = {
   { XK_BackSpace, 127 },   { XK_Up,        63232 }, { XK_Down,      63233 },
   { XK_Left,      63234 }, { XK_Right,     63235 }, { XK_Insert,    63271 },
