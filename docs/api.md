@@ -2,10 +2,10 @@
 
 The module is imported as `import ./uitest.bend as UITest`.
 `Event` is defined in upstream Bend's Base library.
-`WindowRef` is defined in the pinned [window-reference package](https://hub.bend-lang.com/0x3d4f2512cce00e5099d03d9e1b3b9ae1).
+`WindowRef` is defined in the pinned [window-reference package](https://hub.bend-lang.com/0xc49b12025f945d56de002cde2237ecc5).
 
 ```python
-import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
+import 0xc49b12025f945d56de002cde2237ecc5/winref.bend as WinRef
 ```
 
 References have type `WinRef.WindowRef` and constructor `WinRef.X11WindowRef{display, id}`.
@@ -51,8 +51,14 @@ Window decorations and desktop position are excluded.
 Valid coordinates satisfy `x < width`, `y < height`, `x <= 32767`, and `y <= 32767`.
 Bend uses button number `0` for the left mouse button.
 
+Clicks arrive as Bend 2.0.40 `Press` events with pointer ID `0`, `Tool.Mouse{}`, `F32` coordinates, and timestamp `0`.
+The low-level `UITest.send` accepts complete click pairs with these fields and integral coordinates in the valid range.
+Other pointer IDs, tools, timestamps, and buttons return `EINVAL`.
+Printable key presses can also produce upstream `Text` events.
+
 The library opens a temporary connection to the display named in the reference.
 It does not move the cursor or change focus or global key state.
+Clicks go directly to the window owner, including when Bend uses XInput2 instead of core button event masks.
 The application retains `Window`. `request_close` does not destroy the window.
 The reference expires with its window owner.
 
@@ -64,7 +70,7 @@ Errors are represented as `Fail{(errno, message)}`.
 |---|---|
 | `2`, ENOENT | The display is unavailable or the window disappeared before the send. For a window that no longer exists, `alive` returns `Done{False{}}`. |
 | `22`, EINVAL | An empty display name, embedded NUL, zero window ID, invalid key code, or invalid coordinates. |
-| `95`, ENOTSUP | The key is unavailable in the layout, the window does not accept the required events, `WM_DELETE_WINDOW` is missing, or the backend is unsupported. |
+| `95`, ENOTSUP | The key is unavailable in the layout, the window does not select both keyboard event edges, `WM_DELETE_WINDOW` is missing, or the backend is unsupported. |
 | `11`, EAGAIN | X11 reported `BadMatch`. |
 | `5`, EIO | Another X11 protocol or send error. |
 
@@ -74,10 +80,11 @@ The native backend outside Linux returns the platform's ENOTSUP value.
 ## Limitations
 
 Native Bend windows under X11 and Xwayland are supported. Pure Wayland and JavaScript do not support event injection.
-The key decoder matches upstream Bend 2.0.39's `window_key`.
+The key decoder matches upstream Bend 2.0.40's `window_key`.
 Changing the keyboard layout after creating a window can make the owner's cached decoder disagree with the sender's new connection.
 
 `alive` reports whether the window exists at the time of the query.
+After `Window.close`, X11 may briefly report it alive until the server processes the disconnected owner.
 X11 can reuse IDs, and `WindowRef` has no resource generation identifier.
 An `alive` check does not guarantee that the next call succeeds.
 

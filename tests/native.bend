@@ -1,6 +1,6 @@
 import Base
-import 0x493e83fed22415cb35e84da752fefdef/capture.bend as Capture
-import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
+import 0x96b81e0a74aa19e36648e34113e72607/capture.bend as Capture
+import 0xc49b12025f945d56de002cde2237ecc5/winref.bend as WinRef
 import ../uitest.bend as UITest
 import ./assert.bend as Assert
 import ./reference.bend as Reference
@@ -12,8 +12,9 @@ def same_event(a: Event, b: Event) -> Bool:
   match a b:
     case Key{ac, ad} Key{bc, bd}:
       U32.is_eq(ac, bc) && same_bool(ad, bd)
-    case Mouse{ax, ay, ab, ad} Mouse{bx, by, bb, bd}:
-      U32.is_eq(ax, bx) && U32.is_eq(ay, by) && U32.is_eq(ab, bb) && same_bool(ad, bd)
+    case Press{ai, Tool.Mouse{}, ax, ay, at, ab, ad} Press{bi, Tool.Mouse{}, bx, by, bt, bb, bd}:
+      U32.is_eq(ai, bi) && F32.is_eq(ax, bx) && F32.is_eq(ay, by)
+        && U32.is_eq(at, bt) && U32.is_eq(ab, bb) && same_bool(ad, bd)
     case Close{} Close{}:
       True{}
     case other_a other_b:
@@ -34,8 +35,8 @@ def input_events(events: List<Event>) -> List<Event>:
       Nil{}
     case Key{code, down} <> rest:
       Key{code, down} <> input_events(rest)
-    case Mouse{x, y, button, down} <> rest:
-      Mouse{x, y, button, down} <> input_events(rest)
+    case Press{id, tool, x, y, time, button, down} <> rest:
+      Press{id, tool, x, y, time, button, down} <> input_events(rest)
     case Close{} <> rest:
       Close{} <> input_events(rest)
     case other <> rest:
@@ -49,9 +50,12 @@ def expected() -> List<Event>:
    Key{33, True{}}, Key{33, False{}},
    Key{127, True{}}, Key{127, False{}},
    Key{65592, True{}}, Key{65592, False{}},
-   Mouse{23, 17, 0, True{}}, Mouse{23, 17, 0, False{}},
-   Mouse{0, 0, 0, True{}}, Mouse{0, 0, 0, False{}},
-   Mouse{95, 63, 0, True{}}, Mouse{95, 63, 0, False{}}, Close{}]
+   Press{0, Tool.Mouse{}, 23.0, 17.0, 0, 0, True{}},
+   Press{0, Tool.Mouse{}, 23.0, 17.0, 0, 0, False{}},
+   Press{0, Tool.Mouse{}, 0.0, 0.0, 0, 0, True{}},
+   Press{0, Tool.Mouse{}, 0.0, 0.0, 0, 0, False{}},
+   Press{0, Tool.Mouse{}, 95.0, 63.0, 0, 0, True{}},
+   Press{0, Tool.Mouse{}, 95.0, 63.0, 0, 0, False{}}, Close{}]
 
 def roundtrip_codes(codes: List<U32>, +ref: WinRef.WindowRef) -> IO(List<Event>):
   match codes:
@@ -87,12 +91,14 @@ def expired(+ref: WinRef.WindowRef) -> IO(Unit):
     Assert.check(Assert.error_bool(22, zero), "zero window ID is rejected before opening display")
     IO.print("native UI tests: OK")
 
-def isolated(ref: WinRef.WindowRef, window: Window, q: Window & Image & List<Event>) -> IO(Unit):
+def isolated(+ref: WinRef.WindowRef, window: Window, q: Window & Image & List<Event>) -> IO(Unit):
   (other, image, events) = q
   do IO<Unit>:
     Assert.check(same_events(input_events(events), []), "another window receives no injected input")
     Window.close(other)
+    watch : Reference.CloseWatch <- Reference.watch_close(ref)
     Window.close(window)
+    Reference.await_close(watch)
     expired(ref)
 
 def captured(ref: WinRef.WindowRef, other: Window,
@@ -130,6 +136,14 @@ def observed(+ref: WinRef.WindowRef, other: Window, before: String,
     expected : List<Event> <- roundtrip_codes(codes, ref)
     IO.bind(Window & Image & List<Event>, Unit, Window.frame(window, Pix{1122867}), keymap_observed(ref, other, expected))
 
+def reject_click(ref: WinRef.WindowRef, +id: U32, +tool: Tool, +x: F32, +y: F32,
+  +time: U32, +button: U32, message: String) -> IO(Unit):
+  do IO<Unit>:
+    result : Result<&1, &1, U32 & String, Unit> <- UITest.send(ref,
+      [Press{id, tool, x, y, time, button, True{}},
+       Press{id, tool, x, y, time, button, False{}}])
+    Assert.check(Assert.error_unit(22, result), message)
+
 def exercise(+ref: WinRef.WindowRef, window: Window, other: Window) -> IO(Unit):
   do IO<Unit>:
     before : String <- Reference.input_state(ref)
@@ -159,6 +173,15 @@ def exercise(+ref: WinRef.WindowRef, window: Window, other: Window) -> IO(Unit):
     Assert.check(Assert.error_unit(22, incomplete), "incomplete plan is rejected before sending")
     mismatched : Result<&1, &1, U32 & String, Unit> <- UITest.send(ref, [Key{97, True{}}, Key{98, False{}}])
     Assert.check(Assert.error_unit(22, mismatched), "mismatched key pair is rejected before sending")
+    reject_click(ref, 0, Tool.Mouse{}, 0.5, 0.0, 0, 0, "fractional click coordinates are rejected")
+    reject_click(ref, 0, Tool.Mouse{}, 0.0, F32.neg(1.0), 0, 0, "negative click coordinates are rejected")
+    reject_click(ref, 0, Tool.Mouse{}, F32.div(0.0, 0.0), 0.0, 0, 0, "NaN click coordinates are rejected")
+    reject_click(ref, 0, Tool.Mouse{}, 0.0, F32.div(1.0, 0.0), 0, 0, "infinite click coordinates are rejected")
+    reject_click(ref, 0, Tool.Mouse{}, 32768.0, 0.0, 0, 0, "click coordinates must fit signed 16 bits")
+    reject_click(ref, 1, Tool.Mouse{}, 0.0, 0.0, 0, 0, "non-mouse pointer IDs are rejected")
+    reject_click(ref, 0, Tool.Finger{0.5, 1.0, 1.0}, 0.0, 0.0, 0, 0, "non-mouse tools are rejected")
+    reject_click(ref, 0, Tool.Mouse{}, 0.0, 0.0, 1, 0, "custom click timestamps are rejected")
+    reject_click(ref, 0, Tool.Mouse{}, 0.0, 0.0, 0, 1, "non-left click buttons are rejected")
     close : Unit <- IO.try(Unit, UITest.request_close(ref))
     IO.bind(Window & Image & List<Event>, Unit, Window.frame(window, Pix{1122867}), observed(ref, other, before))
 

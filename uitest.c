@@ -84,13 +84,20 @@ static bool uitest_event(Env e, Term value, UitestPlan* event) {
       .down = fields[1] == 1 };
     return fields[1] <= 1;
   }
-  if (term_aux(value) == CID(Mouse)) {
-    Term fields[4];
-    spare_free(e, cls_fit(4), ctr_take(e, value, 4, fields));
-    *event = (UitestPlan){ .kind = UITEST_CLICK, .x = (u32)fields[0],
-      .y = (u32)fields[1], .button = (u32)fields[2],
-      .down = fields[3] == 1 };
-    return fields[3] <= 1;
+  if (term_aux(value) == CID(Press)) {
+    // Bend 2.0.40 flattens Tool into its tag and five payload words.
+    Term fields[12];
+    spare_free(e, cls_fit(12), ctr_take(e, value, 12, fields));
+    f32 x = f32_unbox(fields[7]), y = f32_unbox(fields[8]);
+    // Validate before converting: a public send plan can contain NaN or infinity.
+    if (fields[0] != 0 || fields[1] != 0 || fields[9] != 0
+        || fields[11] > 1 || !(x >= 0 && x <= INT16_MAX
+        && y >= 0 && y <= INT16_MAX) || floorf(x) != x || floorf(y) != y) {
+      return false;
+    }
+    *event = (UitestPlan){ .kind = UITEST_CLICK, .x = (u32)x,
+      .y = (u32)y, .button = (u32)fields[10], .down = fields[11] == 1 };
+    return true;
   }
   if (term_aux(value) == CID(Close)) {
     *event = (UitestPlan){ .kind = UITEST_CLOSE };
@@ -132,7 +139,7 @@ static bool uitest_plan(Env e, Term values, UitestPlan* plan) {
     && events[1].x == plan->x && events[1].y == plan->y;
 }
 
-// Keep this decoder identical to Bend 2.0.39's window_key.
+// Keep this decoder identical to Bend 2.0.40's window_key.
 static const u32 uitest_keys[][2] = {
   { XK_BackSpace, 127 },   { XK_Up,        63232 }, { XK_Down,      63233 },
   { XK_Left,      63234 }, { XK_Right,     63235 }, { XK_Insert,    63271 },
@@ -271,15 +278,14 @@ static Term uitest_send_run(Env e, Term* f, IoWork* work) {
       up = down;
       up.xkey.type = KeyRelease;
     } else if (plan.kind == UITEST_CLICK) {
-      if (plan.x > INT16_MAX || plan.y > INT16_MAX || attrs.width <= 0
-          || attrs.height <= 0 || plan.x >= (u32)attrs.width
+      if (attrs.width <= 0 || attrs.height <= 0 || plan.x >= (u32)attrs.width
           || plan.y >= (u32)attrs.height) {
         code = EINVAL;
-        why = "UITest.click: coordinates must be inside the client and fit signed 16 bits";
+        why = "UITest.click: coordinates must be inside the client";
         break;
       }
-      down_mask = ButtonPressMask;
-      up_mask = ButtonReleaseMask;
+      // NoEventMask delivers to the window owner, including Bend's XInput2
+      // windows, which do not select core ButtonPress/Release masks.
       down.xbutton = (XButtonEvent){ .type = ButtonPress, .display = dpy,
         .window = ref.id, .root = attrs.root, .subwindow = None,
         .time = CurrentTime, .x = (int)plan.x, .y = (int)plan.y,
@@ -300,10 +306,10 @@ static Term uitest_send_run(Env e, Term* f, IoWork* work) {
       down.xclient.data.l[0] = del;
       down.xclient.data.l[1] = CurrentTime;
     }
-    if (pair && (attrs.all_event_masks & (down_mask | up_mask))
+    if (plan.kind == UITEST_KEY && (attrs.all_event_masks & (down_mask | up_mask))
         != (down_mask | up_mask)) {
       code = ENOTSUP;
-      why = "UITest.send: target does not select both input event edges";
+      why = "UITest.key: target does not select both keyboard event edges";
       break;
     }
     XSync(dpy, False);

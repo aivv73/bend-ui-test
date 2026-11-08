@@ -5,6 +5,62 @@
 static u32 window_key(XKeyEvent* event);
 #endif
 
+static Term uitest_reference_watch_close_run(Env e, Term* f, IoWork* work) {
+#if defined(__linux__) && !defined(__OBJC__)
+  u64 length = 0;
+  char* display = io_cstr(e, f[0], &length);
+  Display* dpy = XOpenDisplay(display);
+  free(display);
+  if (dpy == NULL) {
+    err_fail("close observation cannot open its display");
+  }
+  XSelectInput(dpy, (u32)f[1], StructureNotifyMask);
+  XSync(dpy, False);
+  // Keep the observer affine in Bend; carry its pointer as two U32 words.
+  u64 address = (u64)(uintptr_t)dpy;
+  return io_node(e, CID(CloseWatch), (u32)address, (u32)(address >> 32));
+#else
+  err_fail("close observation requires native X11");
+  return 0;
+#endif
+}
+
+static void __attribute__((constructor)) uitest_reference_watch_close_use(void) {
+  io_eff(CID(watch_close_at), uitest_reference_watch_close_run);
+}
+
+static Term uitest_reference_await_close_run(Env e, Term* f, IoWork* work) {
+#if defined(__linux__) && !defined(__OBJC__)
+  Term fields[2];
+  spare_free(e, cls_fit(2), ctr_take(e, f[0], 2, fields));
+  Display* dpy = (Display*)(uintptr_t)((u64)fields[1] << 32 | fields[0]);
+  struct pollfd fd = { .fd = ConnectionNumber(dpy), .events = POLLIN };
+  u64 deadline = io_until(5000);
+  while (true) {
+    while (XPending(dpy)) {
+      XEvent event;
+      XNextEvent(dpy, &event);
+      if (event.type == DestroyNotify) {
+        XCloseDisplay(dpy);
+        return term_pak(CID(Unit), 0);
+      }
+    }
+    u64 now = io_tick();
+    if (now >= deadline || poll(&fd, 1, (int)((deadline - now + 999999) / 1000000)) <= 0) {
+      XCloseDisplay(dpy);
+      err_fail("Window.close did not produce DestroyNotify within five seconds");
+    }
+  }
+#else
+  err_fail("close observation requires native X11");
+  return 0;
+#endif
+}
+
+static void __attribute__((constructor)) uitest_reference_await_close_use(void) {
+  io_eff(CID(await_close), uitest_reference_await_close_run);
+}
+
 static Term uitest_reference_codes_run(Env e, Term* f, IoWork* work) {
   u64 length = 0;
   char* display = io_cstr(e, f[0], &length);
