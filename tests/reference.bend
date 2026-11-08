@@ -1,5 +1,20 @@
 import Base
-import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
+import 0xc49b12025f945d56de002cde2237ecc5/winref.bend as WinRef
+
+type CloseWatch is Type:
+  CloseWatch{low: U32, high: U32}
+
+def watch_close_at(display: String, id: U32) -> IO(CloseWatch):
+  import "./reference.c"
+  import "./reference.js"
+
+def watch_close(ref: WinRef.WindowRef) -> IO(CloseWatch):
+  WinRef.X11WindowRef{display, id} = ref
+  watch_close_at(display, id)
+
+def await_close(watch: CloseWatch) -> IO(Unit):
+  import "./reference.c"
+  import "./reference.js"
 
 def codes(display: String, id: U32) -> IO(List<U32>):
   import "./reference.c"

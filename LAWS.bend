@@ -8,7 +8,9 @@ law key_pair:
 law click_pair:
   for +x: U32
   for +y: U32
-  {Plan.click(x, y) == [Mouse{x, y, 0, True{}}, Mouse{x, y, 0, False{}}] : List<Event>}
+  {Plan.click(x, y) ==
+    [Press{0, Tool.Mouse{}, U32.to_f32(x), U32.to_f32(y), 0, 0, True{}},
+     Press{0, Tool.Mouse{}, U32.to_f32(x), U32.to_f32(y), 0, 0, False{}}] : List<Event>}
 
 law close_one:
   {Plan.request_close() == [Close{}] : List<Event>}

@@ -1,5 +1,5 @@
 import Base
-import 0x3d4f2512cce00e5099d03d9e1b3b9ae1/winref.bend as WinRef
+import 0xc49b12025f945d56de002cde2237ecc5/winref.bend as WinRef
 import ../uitest.bend as UITest
 import ./assert.bend as Assert
 

@@ -7,6 +7,11 @@ The native tests obtain references through `WinRef.WinRef.export` and read pixel
 `uitest.c` validates the plan, opens the specified display, and sends events through `XSendEvent`.
 `uitest.js` returns ENOTSUP.
 
+With Bend 2.0.40, click plans use `Press` events with mouse ID `0`, `Tool.Mouse{}`, floating-point coordinates, and timestamp `0`.
+The native boundary rejects nonintegral, nonfinite, and out-of-range coordinates before converting them to X11 pixels.
+It also rejects other pointer IDs, tools, timestamps, and buttons.
+Clicks use `NoEventMask` to reach the window owner even when Bend selects XInput2 events instead of core button masks.
+
 One IO handler sends both the press and release before the next Bend effect.
 Sequential `do IO` calls preserve request order.
 Another X11 client or window destruction can still intervene between the two requests.
@@ -49,10 +54,12 @@ If the upstream decoder changes, the test compares its behavior with the library
 `scripts/test` runs the standard PROOF check and `--verdict` with the proven kernel.
 It then runs JavaScript in Bun and Node, builds each public operation separately, and runs the native tests.
 Native tests check event sequences, all layout codes, two separate windows, frame readback, and stale-reference errors.
+They also reject invalid `Press` plans, including NaN and infinite coordinates, without delivering events.
+The stale-reference check waits for X11 `DestroyNotify` after `Window.close`, with a five-second timeout, before querying the closed window.
 On Linux, an additional build with `-U__linux__` exercises the branch without X11.
 `SANITIZE=1` adds AddressSanitizer and UndefinedBehaviorSanitizer to the native test.
 
-Bend 2.0.39's generated `main` allocates an `rts` argument array without freeing it.
+Bend 2.0.40's generated `main` allocates an `rts` argument array without freeing it.
 LeakSanitizer reports 16 bytes at exit when no arguments are supplied, even for a program that only imports Base and calls `IO.print`.
 The native assertions pass before this upstream leak makes the sanitizer run fail.
 Use `ASAN_OPTIONS=detect_leaks=0 SANITIZE=1 ./scripts/test` to run AddressSanitizer and UndefinedBehaviorSanitizer without leak detection.
